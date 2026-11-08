@@ -14,16 +14,16 @@ Pada "Serial Experiments Lain, Layer 04: The Wired Expansion", jaringan The Wire
 
 ### 1. Topologi GNS3
 Topologi terdiri atas 13 router, 13 switch, 25 node (host/server), dan 1 node NAT
-![topo](00-topologi-gns3-vlsm.png)
+![Topologi GNS3](assets/vlsm_gns3/00-topologi-gns3-vlsm.png)
 
 Setelah dianalisis, terdapat 25 subnet (A1 sampai A25). Berikut topologi dengan keterangan subnet:
-![topo subnet](01-topologi-gns3-vlsm.png)
+![Topologi dengan subnet](assets/vlsm_gns3/01-topologi-gns3-vlsm.png)
 
 ### 2. Total penggunaan subnet
 Total subnet adalah 25 subnet, dengan total blok yang dialokasikan 4.188 IP. Karena 4.188 lebih besar dari 4.096 dan lebih kecil dari 8.192, pendekatan terkecil yang memuat seluruh jaringan adalah /19** (`10.84.0.0/19`). Detail perhitungan ada pada spreadsheet di atas.
 
 Berikut VLSM tree-nya:
-![alt text](02-vlsm-tree.png)
+![VLSM Tree](assets/vlsm_gns3/02-vlsm-tree.png)
 
 ### 3. Command
 **Cyberia** (`cyberia.sh`)
@@ -216,4 +216,4 @@ echo "OK=$ok  FAIL=$fail"
 ping -c 1 -W 3 google.com >/dev/null 2>&1 && echo "DNS/Internet: OK (google.com)" || echo "DNS/Internet: FAIL (google.com)"
 ```
 
-![ping karl](03-ping-karl.png)
+![Ping dari Karl](assets/vlsm_gns3/03-ping-karl.png)
