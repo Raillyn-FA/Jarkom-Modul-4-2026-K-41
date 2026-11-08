@@ -20,12 +20,49 @@ Setelah dianalisis, terdapat 25 subnet (A1 sampai A25). Berikut topologi dengan 
 ![Topologi dengan subnet](assets/vlsm_gns3/01-topologi-gns3-vlsm.png)
 
 ### 2. Total penggunaan subnet
-Total subnet adalah 25 subnet, dengan total blok yang dialokasikan 4.188 IP. Karena 4.188 lebih besar dari 4.096 dan lebih kecil dari 8.192, pendekatan terkecil yang memuat seluruh jaringan adalah /19** (`10.84.0.0/19`). Detail perhitungan ada pada spreadsheet di atas.
+Total subnet adalah 25 subnet, dengan total blok yang dialokasikan 4.188 IP. Karena 4.188 lebih besar dari 4.096 dan lebih kecil dari 8.192, pendekatan terkecil yang memuat seluruh jaringan adalah /19 (`10.84.0.0/19`). Detail perhitungan ada pada spreadsheet di atas.
 
 Berikut VLSM tree-nya:
 ![VLSM Tree](assets/vlsm_gns3/02-vlsm-tree.png)
 
-### 3. Command
+### 3. Langkah Perhitungan VLSM
+
+**Langkah 1 - Hitung kebutuhan IP tiap subnet.**
+Kebutuhan IP = jumlah host + jumlah interface router pada subnet tersebut.
+
+- Contoh A4 (Psyche - Switch3 - Karl, Lin): 700 + 180 + 1 interface Psyche = **881**.
+- Link router-router tidak memiliki host, sehingga kebutuhannya **2** IP (satu interface per router).
+- Subnet Switch2 (A3) menghubungkan 4 router, sehingga kebutuhannya **4** IP.
+
+**Langkah 2 - Tentukan prefix.**
+Cari blok 2^n terkecil yang memuat kebutuhan IP + 2 (satu untuk Network ID dan satu untuk Broadcast). Prefix = 32 - n.
+
+- A4: 881 + 2 = 883, blok terkecil yang muat 1.024 (2^10), jadi **/22**.
+- A5: 32 + 2 = 34 > 32, jadi tidak muat di /27 (32 alamat), naik ke 64 alamat, jadi **/26**.
+- A21: 3 + 2 = 5, tidak muat di /30 (4 alamat), jadi **/29** (8 alamat).
+
+**Langkah 3 - Urutkan dari blok terbesar ke terkecil.**
+Subnet dengan ukuran yang sama diurutkan berdasarkan nomor subnet.
+
+Alasannya: blok berukuran 2^n harus dimulai di alamat yang habis dibagi 2^n. Kalau dimulai dari blok terbesar, alamat awal tiap blok berikutnya otomatis rata, sehingga tidak ada celah atau alamat terbuang.
+
+**Langkah 4 - Tentukan root.**
+Total kebutuhan IP seluruh subnet adalah 2.814, tetapi tiap subnet dialokasikan satu blok penuh (dibulatkan ke 2^n). Total ukuran blok:
+
+2x1024 (/22) + 2x512 (/23) + 2x256 (/24) + 2x128 (/25) + 4x64 (/26) + 32 (/27) + 3x8 (/29) + 9x4 (/30) = **4.188** alamat.
+
+Karena 4.188 > 4.096 (/20) dan < 8.192 (/19), root terkecil yang memuat semuanya adalah **10.84.0.0/19**.
+
+**Langkah 5 - Alokasikan berurutan dari 10.84.0.0.**
+Network ID blok pertama = 10.84.0.0. Network ID blok berikutnya = Broadcast blok sebelumnya + 1.
+
+- Broadcast = Network ID + ukuran blok - 1
+- Range IP host = Network ID + 1 sampai Broadcast - 1
+- Netmask mengikuti prefix (/22 = 255.255.252.0, /23 = 255.255.254.0, dst.)
+
+Contoh A4 (/22, 1.024 alamat): Network ID 10.84.0.0, Broadcast 10.84.3.255, range host 10.84.0.1 - 10.84.3.254. Network ID A9 = 10.84.3.255 + 1 = 10.84.4.0. Blok terakhir (A24, /30) berakhir di 10.84.16.91, masih di dalam 10.84.0.0/19.
+
+### 4. Command
 **Cyberia** (`cyberia.sh`)
 
 ```
@@ -128,7 +165,7 @@ ip addr | grep "inet "
 ip route
 ```
 
-### 4. Verifikasi
+### 5. Verifikasi
 
 Pengujian dilakukan dari Karl dengan `test_ping.sh`, yang melakukan ping ke seluruh host, seluruh antarmuka router, dan `8.8.8.8`, kemudian menguji DNS ke `google.com`.
 
