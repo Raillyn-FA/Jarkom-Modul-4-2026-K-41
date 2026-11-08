@@ -254,3 +254,308 @@ ping -c 1 -W 3 google.com >/dev/null 2>&1 && echo "DNS/Internet: OK (google.com)
 ```
 
 ![Ping dari Karl](assets/vlsm_gns3/03-ping-karl.png)
+
+## CPT - CIDR
+ 
+Topologi yang sama dikerjakan di Cisco Packet Tracer dengan metode CIDR, kebalikan dari GNS3 yang memakai VLSM. Pada CIDR, subnet digabung dari ujung topologi terjauh dari Cloud menuju Cyberia sampai menjadi satu blok, lalu alamat dialokasikan turun mengikuti pohon penggabungan tersebut. Dengan cara ini setiap cabang menempati satu blok alamat, sehingga tabel routing dapat diringkas. Hasil perhitungan ada pada sheet `Rute`, `Penggabungan - CIDR`, dan `Pembagian IP - CIDR` di spreadsheet di atas. Project CPT ada pada `projects/K-41_Modul4.pkt` dan skrip konfigurasi router pada `scripts/cidr_cpt/`.
+ 
+### 1. Topologi CPT
+Topologi terdiri atas 13 router 2811 (masing-masing dipasangi modul NM-2FE2W), 13 switch (Switch-PT), 25 node (6 server, 9 laptop, 10 PC), dan 1 Cloud-PT yang hanya terhubung ke Cyberia. Kabel cross-over dipakai untuk link router ke router dan router ke node secara langsung, sedangkan kabel straight-through dipakai untuk router ke switch dan switch ke node.
+ 
+<!-- SCREENSHOT 1: topologi CPT (semua link hijau) -->
+![Topologi CPT](assets/cidr_cpt/01_Topologi.png)
+ 
+### 2. Total penggunaan subnet
+Subnet sama dengan pada VLSM, yaitu 25 subnet (A1 sampai A25) dengan total blok 4.188 IP, sehingga root terkecil yang memuat seluruh jaringan adalah /19 (`10.84.0.0/19`). Kebutuhan IP dan prefix tiap subnet dihitung dengan cara yang sama seperti pada langkah 1 dan 2 VLSM, dan hasilnya ada pada sheet `Rute`.
+ 
+### 3. Langkah Perhitungan CIDR
+ 
+**Langkah 1 - Gunakan kebutuhan IP dan prefix tiap subnet.**
+Kebutuhan IP = jumlah host + jumlah interface router pada subnet tersebut, lalu dicarikan blok 2^n terkecil yang muat (kebutuhan + 2). Contoh A4 = 881 IP menjadi /22, A5 = 32 IP menjadi /26, dan A21 = 3 IP menjadi /29.
+ 
+**Langkah 2 - Terapkan aturan penggabungan.**
+Dua subnet digabung menjadi satu blok dengan netmask satu tingkat di atas komponen yang terbesar, yaitu prefix terkecil dikurangi 1. Penggabungan dimulai dari subnet yang paling jauh dari Cloud, kemudian dinaikkan sampai tersisa satu blok.
+ 
+- A24 (/30) + A22 (/30) menjadi B1 (/29), karena kedua komponen sama besar.
+- A6 (/23) + A5 (/26) menjadi B6 (/22), karena komponen terbesarnya /23, sehingga hasilnya satu tingkat di atasnya.
+**Langkah 3 - Tentukan urutan penggabungan.**
+Penggabungan disusun dengan tiga prinsip:
+ 
+1. Subnet digabung per cabang dan dimulai dari ujung rantai Tachibana (Shibuya) agar hasil tiap cabang menjadi satu blok.
+2. Subnet berukuran kecil (/30 dan /29) digabung lebih dulu dengan sesama subnet kecil, supaya blok yang besar tidak naik satu tingkat hanya karena kelebihan beberapa IP.
+3. Setiap cabang yang keluar dari Wired (Psyche, Copland, Schumann, Navi, Tachibana) dijaga tetap menjadi satu blok sendiri, sehingga Wired cukup memiliki satu rute untuk tiap cabang. Subnet kecil di sekitar Wired (A1, A2, A3, dan A14) digabung menjadi satu blok D2 yang menumpang pada sisa ruang blok timur.
+Hasil penggabungan (sesuai sheet `Penggabungan - CIDR`):
+ 
+**Tahap I**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| B1 | A24 (/30) | A22 (/30) | /29 | 10.84.23.160/29 |
+| B2 | A19 (/26) | A20 (/30) | /25 | 10.84.23.0/25 |
+| B3 | A18 (/30) | A16 (/30) | /29 | 10.84.22.128/29 |
+| B4 | A12 (/26) | A10 (/30) | /25 | 10.84.18.0/25 |
+| B5 | A11 (/24) | A13 (/24) | /23 | 10.84.16.0/23 |
+| B6 | A6 (/23) | A5 (/26) | /22 | 10.84.4.0/22 |
+| B7 | A7 (/29) | A8 (/30) | /28 | 10.84.12.0/28 |
+| B8 | A2 (/30) | A14 (/30) | /29 | 10.84.24.128/29 |
+ 
+**Tahap II**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| C1 | B1 (/29) | A21 (/29) | /28 | 10.84.23.160/28 |
+| C2 | A17 (/25) | B3 (/29) | /24 | 10.84.22.0/24 |
+| C3 | B5 (/23) | B4 (/25) | /22 | 10.84.16.0/22 |
+| C4 | A9 (/22) | B7 (/28) | /21 | 10.84.8.0/21 |
+| C5 | B8 (/29) | A3 (/29) | /28 | 10.84.24.128/28 |
+| C6 | A4 (/22) | B6 (/22) | /21 | 10.84.0.0/21 |
+ 
+**Tahap III**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| D1 | A23 (/27) | C1 (/28) | /26 | 10.84.23.128/26 |
+| D2 | A1 (/25) | C5 (/28) | /24 | 10.84.24.0/24 |
+| D3 | C6 (/21) | C4 (/21) | /20 | 10.84.0.0/20 |
+ 
+**Tahap IV**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| E1 | D1 (/26) | A25 (/26) | /25 | 10.84.23.128/25 |
+ 
+**Tahap V**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| F1 | B2 (/25) | E1 (/25) | /24 | 10.84.23.0/24 |
+ 
+**Tahap VI**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| G1 | C2 (/24) | F1 (/24) | /23 | 10.84.22.0/23 |
+ 
+**Tahap VII**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| H1 | A15 (/23) | G1 (/23) | /22 | 10.84.20.0/22 |
+ 
+**Tahap VIII**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| I1 | C3 (/22) | H1 (/22) | /21 | 10.84.16.0/21 |
+ 
+**Tahap IX**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| J1 | I1 (/21) | D2 (/24) | /20 | 10.84.16.0/20 |
+ 
+**Tahap X**
+ 
+| Subnet | Gabungan dari 1 | Gabungan dari 2 | Netmask akhir | Network ID |
+|---|---|---|---|---|
+| K1 | D3 (/20) | J1 (/20) | /19 | 10.84.0.0/19 |
+ 
+**Langkah 4 - Pohon CIDR.**
+Root K1 adalah `10.84.0.0/19`. Setiap simpul adalah hasil penggabungan, dan daun adalah subnet A1 sampai A25.
+ 
+```
+K1  10.84.0.0/19
+├── D3  10.84.0.0/20
+│   ├── C6  10.84.0.0/21
+│   │   ├── A4  10.84.0.0/22  (Psyche > Switch3 > Karl, Lin)
+│   │   └── B6  10.84.4.0/22
+│   │       ├── A6  10.84.4.0/23  (Copland > Switch4 > Masayuki)
+│   │       └── A5  10.84.6.0/26  (Copland > Juri)
+│   └── C4  10.84.8.0/21
+│       ├── A9  10.84.8.0/22  (Accela > Switch5 > Omnipresence, Denpa)
+│       └── B7  10.84.12.0/28
+│           ├── A7  10.84.12.0/29  (Schumann > Akashic)
+│           └── A8  10.84.12.8/30  (Schumann > Accela)
+└── J1  10.84.16.0/20
+    ├── I1  10.84.16.0/21
+    │   ├── C3  10.84.16.0/22
+    │   │   ├── B5  10.84.16.0/23
+    │   │   │   ├── A11  10.84.16.0/24  (Navi > Switch6 > Alice, Reika)
+    │   │   │   └── A13  10.84.17.0/24  (Navi > Switch8 > Yasuo, Miho, Kuma)
+    │   │   └── B4  10.84.18.0/25
+    │   │       ├── A12  10.84.18.0/26  (Navi > Switch7 > Taro)
+    │   │       └── A10  10.84.18.64/30  (Wired > Navi)
+    │   └── H1  10.84.20.0/22
+    │       ├── A15  10.84.20.0/23  (Tachibana > Switch9 > Collective, Ghost)
+    │       └── G1  10.84.22.0/23
+    │           ├── C2  10.84.22.0/24
+    │           │   ├── A17  10.84.22.0/25  (Deus > Switch10 > Lilith, Specter)
+    │           │   └── B3  10.84.22.128/29
+    │           │       ├── A18  10.84.22.128/30  (Deus > Protocol7)
+    │           │       └── A16  10.84.22.132/30  (Tachibana > Deus)
+    │           └── F1  10.84.23.0/24
+    │               ├── B2  10.84.23.0/25
+    │               │   ├── A19  10.84.23.0/26  (Protocol7 > Switch11 > Chisa, Hodgeson)
+    │               │   └── A20  10.84.23.64/30  (Protocol7 > Knights)
+    │               └── E1  10.84.23.128/25
+    │                   ├── D1  10.84.23.128/26
+    │                   │   ├── A23  10.84.23.128/27  (Phantoma > Switch12 > Semi)
+    │                   │   └── C1  10.84.23.160/28
+    │                   │       ├── B1  10.84.23.160/29
+    │                   │       │   ├── A24  10.84.23.160/30  (Phantoma > Shibuya)
+    │                   │       │   └── A22  10.84.23.164/30  (Knights > Phantoma)
+    │                   │       └── A21  10.84.23.168/29  (Knights > Eiri)
+    │                   └── A25  10.84.23.192/26  (Shibuya > Switch13 > Lain, Mika)
+    └── D2  10.84.24.0/24
+        ├── A1  10.84.24.0/25  (Cyberia > JJ, MyuMyu)
+        └── C5  10.84.24.128/28
+            ├── B8  10.84.24.128/29
+            │   ├── A2  10.84.24.128/30  (Cyberia > Wired)
+            │   └── A14  10.84.24.132/30  (Wired > Tachibana)
+            └── A3  10.84.24.136/29  (Wired > Switch2 > Psyche, Copland, Schumann)
+```
+ 
+**Langkah 5 - Alokasikan alamat dari pohon.**
+Alokasi dimulai dari Network ID root `10.84.0.0`. Pada tiap simpul, komponen yang lebih besar menempati alamat lebih rendah, sedangkan komponen yang lebih kecil dimulai di awal separuh kedua blok. Dengan aturan ini setiap Network ID selalu selaras dengan netmask-nya.
+ 
+- Broadcast = Network ID + ukuran blok - 1
+- Range IP host = Network ID + 1 sampai Broadcast - 1
+Contoh A1 (/25): K1 `10.84.0.0/19` terbagi menjadi D3 (`10.84.0.0/20`) dan J1 (`10.84.16.0/20`). J1 terbagi menjadi I1 (`10.84.16.0/21`) dan D2 (`10.84.24.0/24`). D2 terbagi menjadi A1 (`10.84.24.0/25`) dan C5 (`10.84.24.128/28`). Jadi Network ID A1 = 10.84.24.0, Broadcast = 10.84.24.127, dan range host 10.84.24.1 - 10.84.24.126.
+ 
+Tabel lengkap seluruh subnet ada pada sheet `Pembagian IP - CIDR`, dan pengelompokan per sayap topologi pada sheet `(Revisi) Pembagian IP - CIDR`.
+ 
+### 4. Routing
+Routing dibuat statis dan seefisien mungkin dengan memanfaatkan blok hasil penggabungan: setiap router memakai satu rute ringkas untuk tiap cabang di bawahnya, dan satu default route ke router di atasnya. Cloud0 tidak dikonfigurasi, dan pada Cyberia interface `FastEthernet0/0` hanya dinyalakan (`no shutdown`) tanpa IP.
+ 
+| Router | Rute statis (tujuan via next-hop) |
+|---|---|
+| Cyberia | `10.84.0.0/19` via `10.84.24.130` |
+| Wired | `10.84.0.0/22` via `10.84.24.138`<br>`10.84.4.0/22` via `10.84.24.139`<br>`10.84.8.0/21` via `10.84.24.140`<br>`10.84.16.0/22` via `10.84.18.66`<br>`10.84.20.0/22` via `10.84.24.134`<br>`0.0.0.0/0` via `10.84.24.129` |
+| Psyche | `0.0.0.0/0` via `10.84.24.137` |
+| Copland | `0.0.0.0/0` via `10.84.24.137` |
+| Schumann | `10.84.8.0/22` via `10.84.12.10`<br>`0.0.0.0/0` via `10.84.24.137` |
+| Accela | `0.0.0.0/0` via `10.84.12.9` |
+| Navi | `0.0.0.0/0` via `10.84.18.65` |
+| Tachibana | `10.84.22.0/23` via `10.84.22.134`<br>`0.0.0.0/0` via `10.84.24.133` |
+| Deus | `10.84.23.0/24` via `10.84.22.130`<br>`0.0.0.0/0` via `10.84.22.133` |
+| Protocol7 | `10.84.23.128/25` via `10.84.23.66`<br>`0.0.0.0/0` via `10.84.22.129` |
+| Knights | `10.84.23.128/25` via `10.84.23.166`<br>`0.0.0.0/0` via `10.84.23.65` |
+| Phantoma | `10.84.23.192/26` via `10.84.23.162`<br>`0.0.0.0/0` via `10.84.23.165` |
+| Shibuya | `0.0.0.0/0` via `10.84.23.161` |
+ 
+Wired yang menghubungkan 25 subnet hanya memerlukan 5 rute ringkas dan 1 default route.
+ 
+### 5. Command
+Skrip untuk setiap router ada pada folder `scripts/cidr_cpt/`. Nama interface pada skrip mengikuti sambungan kabel pada topologi CPT. Contoh dua router utama:
+ 
+**Cyberia** (`cyberia.sh`)
+ 
+```
+enable
+configure terminal
+hostname Cyberia
+no ip domain-lookup
+interface FastEthernet0/0
+ description ke Cloud0 (tanpa IP)
+ no shutdown
+ exit
+interface FastEthernet0/1
+ description A1 ke Switch1
+ ip address 10.84.24.1 255.255.255.128
+ no shutdown
+ exit
+interface FastEthernet1/0
+ description A2 ke Wired
+ ip address 10.84.24.129 255.255.255.252
+ no shutdown
+ exit
+ip route 10.84.0.0 255.255.224.0 10.84.24.130
+end
+write memory
+```
+ 
+**Wired** (`wired.sh`)
+ 
+```
+enable
+configure terminal
+hostname Wired
+no ip domain-lookup
+interface FastEthernet0/0
+ description A2 ke Cyberia
+ ip address 10.84.24.130 255.255.255.252
+ no shutdown
+ exit
+interface FastEthernet0/1
+ description A14 ke Tachibana
+ ip address 10.84.24.133 255.255.255.252
+ no shutdown
+ exit
+interface FastEthernet1/0
+ description A10 ke Navi
+ ip address 10.84.18.65 255.255.255.252
+ no shutdown
+ exit
+interface FastEthernet1/1
+ description A3 ke Switch2 (segmen bersama)
+ ip address 10.84.24.137 255.255.255.248
+ no shutdown
+ exit
+ip route 10.84.0.0 255.255.252.0 10.84.24.138
+ip route 10.84.4.0 255.255.252.0 10.84.24.139
+ip route 10.84.8.0 255.255.248.0 10.84.24.140
+ip route 10.84.16.0 255.255.252.0 10.84.18.66
+ip route 10.84.20.0 255.255.252.0 10.84.24.134
+ip route 0.0.0.0 0.0.0.0 10.84.24.129
+end
+write memory
+```
+ 
+Konfigurasi PC, laptop, dan server (diisi pada IP Configuration untuk PC dan laptop, serta pada Config untuk server):
+ 
+| Node | Subnet | IP address | Netmask | Default gateway |
+|---|---|---|---|---|
+| JJ | A1 | 10.84.24.2 | 255.255.255.128 | 10.84.24.1 |
+| MyuMyu | A1 | 10.84.24.3 | 255.255.255.128 | 10.84.24.1 |
+| Karl | A4 | 10.84.0.2 | 255.255.252.0 | 10.84.0.1 |
+| Lin | A4 | 10.84.0.3 | 255.255.252.0 | 10.84.0.1 |
+| Juri | A5 | 10.84.6.2 | 255.255.255.192 | 10.84.6.1 |
+| Masayuki | A6 | 10.84.4.2 | 255.255.254.0 | 10.84.4.1 |
+| Akashic | A7 | 10.84.12.2 | 255.255.255.248 | 10.84.12.1 |
+| Omnipresence | A9 | 10.84.8.2 | 255.255.252.0 | 10.84.8.1 |
+| Denpa | A9 | 10.84.8.3 | 255.255.252.0 | 10.84.8.1 |
+| Alice | A11 | 10.84.16.2 | 255.255.255.0 | 10.84.16.1 |
+| Reika | A11 | 10.84.16.3 | 255.255.255.0 | 10.84.16.1 |
+| Taro | A12 | 10.84.18.2 | 255.255.255.192 | 10.84.18.1 |
+| Yasuo | A13 | 10.84.17.2 | 255.255.255.0 | 10.84.17.1 |
+| Miho | A13 | 10.84.17.3 | 255.255.255.0 | 10.84.17.1 |
+| Kuma | A13 | 10.84.17.4 | 255.255.255.0 | 10.84.17.1 |
+| Collective | A15 | 10.84.20.2 | 255.255.254.0 | 10.84.20.1 |
+| Ghost | A15 | 10.84.20.3 | 255.255.254.0 | 10.84.20.1 |
+| Lilith | A17 | 10.84.22.2 | 255.255.255.128 | 10.84.22.1 |
+| Specter | A17 | 10.84.22.3 | 255.255.255.128 | 10.84.22.1 |
+| Chisa | A19 | 10.84.23.2 | 255.255.255.192 | 10.84.23.1 |
+| Hodgeson | A19 | 10.84.23.3 | 255.255.255.192 | 10.84.23.1 |
+| Eiri | A21 | 10.84.23.170 | 255.255.255.248 | 10.84.23.169 |
+| Semi | A23 | 10.84.23.130 | 255.255.255.224 | 10.84.23.129 |
+| Lain | A25 | 10.84.23.194 | 255.255.255.192 | 10.84.23.193 |
+| Mika | A25 | 10.84.23.195 | 255.255.255.192 | 10.84.23.193 |
+ 
+### 6. Verifikasi
+Pengujian dilakukan dari Karl dengan ping ke host pada setiap cabang, serta `tracert` ke Mika sebagai jalur terjauh. Jalur yang seharusnya ditempuh dari Karl ke Mika adalah Psyche, Wired, Tachibana, Deus, Protocol7, Knights, Phantoma, kemudian Shibuya.
+ 
+
+![Ping](assets/cidr_cpt/02_Ping1.png)
+
+![Ping](assets/cidr_cpt/03_Ping2.png)
+ 
+### 7. Perbandingan dengan VLSM
+ 
+| | VLSM (GNS3) | CIDR (CPT) |
+|---|---|---|
+| Root | 10.84.0.0/19 | 10.84.0.0/19 |
+| Alamat yang ditempati | 10.84.0.0 sampai 10.84.16.91 | 10.84.0.0 sampai 10.84.24.143 |
+| Rute pada Wired | 1 default + 16 rute | 1 default + 5 rute |
+ 
+VLSM menempatkan alamat paling rapat, sedangkan CIDR menyisakan lebih banyak ruang karena tiap cabang dijaga tetap menjadi satu blok, sebagai gantinya tabel routing menjadi jauh lebih ringkas.
+ 
